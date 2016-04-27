@@ -5,12 +5,12 @@ function getConfig()
         displayInterval  = 100,
         testInterval     = 1000,
         nTestDisplay     = 15,
-        trainBatchSize   = 64,
+        trainBatchSize   = 64,              -- batch size for SGD
         valBatchSize     = 256,
         snapshotInterval = 10000,
         maxIterations    = 2000000,
-        optimMethod      = optim.adadelta,
-        optimConfig      = {},
+        optimMethod      = optim.adadelta,  -- optim method
+        optimConfig      = {},              -- parameters for optim method, a table
         trainSetPath     = '../data/synth90k_train_lmdb/data.mdb',
         valSetPath       = '../data/synth90k_val_lmdb/data.mdb',
     }
