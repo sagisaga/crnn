@@ -1,0 +1,9 @@
+1 2016-04-27
+
+crnn中使用的最优化方法是adadelta，在准确率达到0.918时就不动了。
+保存快照，修改config.lua，最优化方法换成sgd，
+optimMethod=optim.sgd
+optimConfig={learningRate=1e-3, learningRateDecay=1e-4, weightDecay=0, momentum=0}
+分Batch训练，迭代10W次之后，Test Loss在0.635左右，准确率在0.928时又不动了。
+
+2
