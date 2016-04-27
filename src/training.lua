@@ -20,7 +20,7 @@ function trainModel(model, criterion, trainSet, testSet)
             local outputBatch = model:forward(inputBatch)
             local f = criterion:forward(outputBatch, targetBatch)
             model:backward(inputBatch, criterion:backward(outputBatch, targetBatch))
-            gradParams:div(nFrame)
+            gradParams:div(nFrame)    -- batch train, grad per sample, need clip 
             f = f / nFrame
             return f, gradParams
         end
