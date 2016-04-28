@@ -20,7 +20,9 @@ function trainModel(model, criterion, trainSet, testSet)
             local outputBatch = model:forward(inputBatch)
             local f = criterion:forward(outputBatch, targetBatch)
             model:backward(inputBatch, criterion:backward(outputBatch, targetBatch))
-            gradParams:div(nFrame)    -- batch train, grad per sample, need clip 
+            gradParams:div(nFrame)    -- batch train, grad per sample, need clip
+            -- check grad norm 
+            print('gradParams : ', torch.norm(gradParams))
             f = f / nFrame
             return f, gradParams
         end
