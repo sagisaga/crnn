@@ -216,8 +216,11 @@ function diagnoseGradients(params, gradParams)
         local gpMin = gradParams[i]:min()
         local gpMax = gradParams[i]:max()
         local normRatio = gradParams[i]:norm() / params[i]:norm()
-        logging(string.format('%02d - params [%+.2e, %+.2e] gradParams [%+.2e, %+.2e], norm gp/p %+.2e',
-            i, pMin, pMax, gpMin, gpMax, normRatio), true)
+        --logging(string.format('%02d - params [%+.2e, %+.2e] gradParams [%+.2e, %+.2e], norm gp/p %+.2e',        
+        --    i, pMin, pMax, gpMin, gpMax, normRatio), true)
+        
+        logging(string.format('%02d - params [%10f, %10f] gradParams [%10f, %10f], norm gp/p %10f',
+            i, pMin, pMax, gpMin, gpMax, normRatio), true)            
     end
 end
 

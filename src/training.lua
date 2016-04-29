@@ -22,7 +22,7 @@ function trainModel(model, criterion, trainSet, testSet)
             model:backward(inputBatch, criterion:backward(outputBatch, targetBatch))
             gradParams:div(nFrame)    -- batch train, grad per sample, need clip
             -- check grad norm 
-            print('gradParams : ', torch.norm(gradParams))
+            -- print('gradParams : ', torch.norm(gradParams))
             f = f / nFrame
             return f, gradParams
         end
@@ -98,7 +98,7 @@ function trainModel(model, criterion, trainSet, testSet)
         if iterations % gConfig.displayInterval == 0 then
             loss = loss / gConfig.displayInterval
             logging(string.format('Iteration %d - train loss = %f', iterations, loss))
-            diagnoseGradients(model:parameters())
+            diagnoseGradients(model:parameters())   -- display grad norm every sample for diagnose
             loss = 0
             collectgarbage()
         end
