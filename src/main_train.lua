@@ -15,7 +15,7 @@ require('DatasetLmdb')
 require('LstmLayer')
 require('BiRnnJoin')
 require('SharedParallelTable')
-
+require('weight-init')
 
 -- configurations
 cutorch.setDevice(1)
