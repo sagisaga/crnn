@@ -52,24 +52,27 @@ function createModel(config)
     end
 
     -- model and criterion
-    local model_org = nn.Sequential()
-    model_org:add(nn.Copy('torch.ByteTensor', 'torch.CudaTensor', false, true))
-    model_org:add(nn.AddConstant(-128.0))
-    model_org:add(nn.MulConstant(1.0 / 128))
-    model_org:add(convRelu(1))
-    model_org:add(cudnn.SpatialMaxPooling(2, 2, 2, 2))       -- 64x16x50
-    -- weight initialization
+    local model = nn.Sequential()
     local method = 'xavier'
-    local model = require('weight-init')(model_org, method)
+    model:add(nn.Copy('torch.ByteTensor', 'torch.CudaTensor', false, true))
+    model:add(nn.AddConstant(-128.0))
+    model:add(nn.MulConstant(1.0 / 128))
+    model:add(convRelu(1))
+    model:add(cudnn.SpatialMaxPooling(2, 2, 2, 2))       -- 64x16x50
+    -- weight initialization    
+    model = require('weight-init')(model, method)
     -- end init
     model:add(convRelu(2))
-    model:add(cudnn.SpatialMaxPooling(2, 2, 2, 2))       -- 128x8x25
+    model:add(cudnn.SpatialMaxPooling(2, 2, 2, 2))       -- 128x8x25    
+    model = require('weight-init')(model, method)
     model:add(convRelu(3, true))
     model:add(convRelu(4))
     model:add(cudnn.SpatialMaxPooling(2, 2, 1, 2, 1, 0)) -- 256x4x?
+    model = require('weight-init')(model, method)
     model:add(convRelu(5, true))
     model:add(convRelu(6))
     model:add(cudnn.SpatialMaxPooling(2, 2, 1, 2, 1, 0)) -- 512x2x26
+    model = require('weight-init')(model, method)
     model:add(convRelu(7, true))                         -- 512x1x26
     model:add(nn.View(512, -1):setNumInputDims(3))       -- 512x26
     model:add(nn.Transpose({2, 3}))                      -- 26x512
