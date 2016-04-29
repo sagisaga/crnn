@@ -52,12 +52,16 @@ function createModel(config)
     end
 
     -- model and criterion
-    local model = nn.Sequential()
-    model:add(nn.Copy('torch.ByteTensor', 'torch.CudaTensor', false, true))
-    model:add(nn.AddConstant(-128.0))
-    model:add(nn.MulConstant(1.0 / 128))
-    model:add(convRelu(1))
-    model:add(cudnn.SpatialMaxPooling(2, 2, 2, 2))       -- 64x16x50
+    local model_org = nn.Sequential()
+    model_org:add(nn.Copy('torch.ByteTensor', 'torch.CudaTensor', false, true))
+    model_org:add(nn.AddConstant(-128.0))
+    model_org:add(nn.MulConstant(1.0 / 128))
+    model_org:add(convRelu(1))
+    model_org:add(cudnn.SpatialMaxPooling(2, 2, 2, 2))       -- 64x16x50
+    -- weight initialization
+    local method = 'xavier'
+    local model = require('weight-init')(model_org, method)
+    -- end init
     model:add(convRelu(2))
     model:add(cudnn.SpatialMaxPooling(2, 2, 2, 2))       -- 128x8x25
     model:add(convRelu(3, true))
