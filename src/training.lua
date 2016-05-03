@@ -63,6 +63,9 @@ function trainModel(model, criterion, trainSet, testSet)
         for i = 1, nFrame do
             if predStr[i] == string.lower(gtStr[i]) then
                 nCorrect = nCorrect + 1
+                logging(string.format("   %20s --> %-20s", gtStr[i], predStr[i]))
+            else
+                logging(string.format(" N %20s --> %-20s", gtStr[i], predStr[i]))                                
             end
         end
         local accuracy = nCorrect / nFrame
