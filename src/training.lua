@@ -17,12 +17,12 @@ function trainModel(model, criterion, trainSet, testSet)
                 params:copy(x)
             end
             gradParams:zero()
-            local outputBatch = model:forward(inputBatch)
-            local f = criterion:forward(outputBatch, targetBatch)
+            local outputBatch = model:forward(inputBatch)			-- cnn forward
+            local f = criterion:forward(outputBatch, targetBatch)	-- ctc forward
             model:backward(inputBatch, criterion:backward(outputBatch, targetBatch))
-            gradParams:div(nFrame)    -- batch train, grad per sample, need clip
-            -- check grad norm 
-            -- print('gradParams : ', torch.norm(gradParams))
+            gradParams:div(nFrame)
+			-- check grad
+			-- logging(string.format('gradParams : %f', gradParams))
             f = f / nFrame
             return f, gradParams
         end
@@ -30,7 +30,7 @@ function trainModel(model, criterion, trainSet, testSet)
         return loss
     end
 
-    function validation(input, target)
+    function validation(input, target, path)
         --[[ Do validation
         ARGS:
           - `input`  : validation inputs
@@ -50,24 +50,34 @@ function trainModel(model, criterion, trainSet, testSet)
             output:narrow(1,i,actualBatchSize):copy(outputBatch)
         end
 
-        -- compute loss
+		--print('validation forward')
+		--print('output : ', output)
+        
+		-- compute loss
         local loss = criterion:forward(output, target, true) / nFrame
+		--logging('finish criterion:forward')
 
         -- decoding
         local pred, rawPred = naiveDecoding(output)
+		--logging('finish naiveDecoding')
+
         local predStr = label2str(pred)
+		--logging('finish label2str')
 
         -- compute recognition metrics
-        local gtStr = label2str(target)
+        local gtStr   = label2str(target)
+		-- local pathStr = label2str(path)		-- extract image path
         local nCorrect = 0
         for i = 1, nFrame do
             if predStr[i] == string.lower(gtStr[i]) then
                 nCorrect = nCorrect + 1
-                logging(string.format("   %20s --> %-20s", gtStr[i], predStr[i]))
-            else
-                logging(string.format(" N %20s --> %-20s", gtStr[i], predStr[i]))                                
+				logging(string.format("   %20s --> %-20s", gtStr[i], predStr[i]))
+			else
+				logging(string.format(" N %20s --> %-20s", gtStr[i], predStr[i]))
+				logging(string.format("img path : %s", path[i]))
             end
         end
+
         local accuracy = nCorrect / nFrame
         logging(string.format('Test loss = %f, accuracy = %f', loss, accuracy))
 
@@ -86,8 +96,8 @@ function trainModel(model, criterion, trainSet, testSet)
     while true do
         -- validation
         if iterations == 0 or iterations % gConfig.testInterval == 0 then
-            local valInput, valTarget = testSet:allImageLabel(5000)
-            validation(valInput, valTarget)
+            local valInput, valTarget, valPath = testSet:allImageLabel(5000)
+            validation(valInput, valTarget, valPath)
             collectgarbage()
         end
 
@@ -101,8 +111,8 @@ function trainModel(model, criterion, trainSet, testSet)
         if iterations % gConfig.displayInterval == 0 then
             loss = loss / gConfig.displayInterval
             logging(string.format('Iteration %d - train loss = %f', iterations, loss))
-            diagnoseGradients(model:parameters())   -- display grad norm every sample for diagnose
-            loss = 0
+            diagnoseGradients(model:parameters()) -- display grad norm every sample
+            loss = 0 -- clear loss every iteration
             collectgarbage()
         end
 

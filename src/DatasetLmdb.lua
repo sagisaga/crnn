@@ -11,11 +11,16 @@ function DatasetLmdb:__init(lmdbPath, batchSize, imageType)
     self.batchSize = batchSize or -1
     self.imageType = imageType or 'jpg'
     self:loadDataset(lmdbPath)
+	--add by winny for log
+    print(lmdbPath)
 end
 
 
 function DatasetLmdb:loadDataset(lmdbPath)
-    self.env = lmdb.environment(lmdbPath, {subdir=false, max_dbs=8, size=1099511627776})
+	print("lmdbPath : ", lmdbPath)
+    self.env, msg = lmdb.environment(lmdbPath, {subdir=false, max_dbs=8, size=1099511627776})
+	--print("self.evn : ", self.env)
+	--print("msg : ", msg)
     self.env:transaction(function(txn)
         self.nSamples = tonumber(tostring(txn:get('num-samples')))
     end)
@@ -57,17 +62,30 @@ end
 
 
 function DatasetLmdb:allImageLabel(nSampleMax)
-    local imgW, imgH = 100, 32
+    local imgW, imgH = 100, 32 -- normalize image size
     nSampleMax = nSampleMax or math.huge
     local nSample = math.min(self.nSamples, nSampleMax)
     local images = torch.ByteTensor(nSample, 1, imgH, imgW)
     local labelList = {}
+	local pathList  = {}
     self.env:transaction(function(txn)
         for i = 1, nSample do
             local imageKey = string.format('image-%09d', i)
             local labelKey = string.format('label-%09d', i)
+            local pathKey  = string.format('ipath-%09d', i) -- extract image path
             local imageBin = tostring(txn:get(imageKey))
             local labelBin = tostring(txn:get(labelKey))
+			local pathBin  = tostring(txn:get(pathKey))
+
+			--[[print("labelKey ", labelKey, " : ", labelBin)
+			print("pathKey  ", pathKey, " : ", pathBin)
+			if (i==3020) then
+				print("====================")
+				print("pathKey  ", pathKey, " : ", pathBin)
+				print("====================")
+			end
+			--]]
+
             local imageByteLen = string.len(imageBin)
             local imageBytes = torch.ByteTensor(imageByteLen)
             imageBytes:storage():string(imageBin)
@@ -76,10 +94,12 @@ function DatasetLmdb:allImageLabel(nSampleMax)
             img = Image.scale(img, imgW, imgH)
             images[i]:copy(img)
             labelList[i] = labelBin
+			pathList[i]  = pathBin
         end
     end)
-    local labels = str2label(labelList, gConfig.maxT)
-    return images, labels
+    local labels=str2label(labelList, gConfig.maxT)
+	--local paths=str2label(pathList,  gConfig.maxT)
+    return images, labels, pathList
 end
 
 
