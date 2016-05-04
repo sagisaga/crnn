@@ -75,16 +75,7 @@ function DatasetLmdb:allImageLabel(nSampleMax)
             local pathKey  = string.format('ipath-%09d', i) -- extract image path
             local imageBin = tostring(txn:get(imageKey))
             local labelBin = tostring(txn:get(labelKey))
-			local pathBin  = tostring(txn:get(pathKey))
-
-			--[[print("labelKey ", labelKey, " : ", labelBin)
-			print("pathKey  ", pathKey, " : ", pathBin)
-			if (i==3020) then
-				print("====================")
-				print("pathKey  ", pathKey, " : ", pathBin)
-				print("====================")
-			end
-			--]]
+			      local pathBin  = tostring(txn:get(pathKey))
 
             local imageByteLen = string.len(imageBin)
             local imageBytes = torch.ByteTensor(imageByteLen)
@@ -94,7 +85,7 @@ function DatasetLmdb:allImageLabel(nSampleMax)
             img = Image.scale(img, imgW, imgH)
             images[i]:copy(img)
             labelList[i] = labelBin
-			pathList[i]  = pathBin
+			      pathList[i]  = pathBin
         end
     end)
     local labels=str2label(labelList, gConfig.maxT)
