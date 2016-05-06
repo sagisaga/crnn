@@ -87,12 +87,12 @@ end
 
 function setupLogger(fpath)
     local fileMode = 'w'
-    if paths.filep(fpath) then
+
+    --[[if paths.filep(fpath) then
         local input = nil
         while not input do
             print('Logging file exits, overwrite(o)? append(a)? abort(q)?')
-            -- input = io.read()
-            input = 'o'
+            input = io.read()
             if input == 'o' then
                 fileMode = 'w'
             elseif input == 'a' then
@@ -104,6 +104,7 @@ function setupLogger(fpath)
             end
         end
     end
+	--]]
     gLoggerFile = io.open(fpath, fileMode)
 end
 
@@ -216,18 +217,18 @@ function diagnoseGradients(params, gradParams)
         local gpMin = gradParams[i]:min()
         local gpMax = gradParams[i]:max()
         local normRatio = gradParams[i]:norm() / params[i]:norm()
-        --logging(string.format('%02d - params [%+.2e, %+.2e] gradParams [%+.2e, %+.2e], norm gp/p %+.2e',        
+        --logging(string.format('%02d - params [%+.2e, %+.2e] gradParams [%+.2e, %+.2e], norm gp/p %+.2e',
         --    i, pMin, pMax, gpMin, gpMax, normRatio), true)
-        
+
         logging(string.format('%02d - params [%10f, %10f] gradParams [%10f, %10f], norm gp/p %10f',
-            i, pMin, pMax, gpMin, gpMax, normRatio), true)            
+            i, pMin, pMax, gpMin, gpMax, normRatio), true)
     end
 end
 
 
 function modelState(model)
     --[[ Get model state, including model parameters (weights and biases) and
-         running mean/var in batch normalization layers
+         running mean/std in batch normalization layers
     ARGS:
       - `model` : network model
     RETURN:
@@ -238,11 +239,13 @@ function modelState(model)
     local bnLayers = model:findModules('nn.BatchNormalization')
     for i = 1, #bnLayers do
         bnVars[#bnVars+1] = bnLayers[i].running_mean
+        -- bnVars[#bnVars+1] = bnLayers[i].running_std
         bnVars[#bnVars+1] = bnLayers[i].running_var
     end
     local bnLayers = model:findModules('nn.SpatialBatchNormalization')
     for i = 1, #bnLayers do
         bnVars[#bnVars+1] = bnLayers[i].running_mean
+        -- bnVars[#bnVars+1] = bnLayers[i].running_std
         bnVars[#bnVars+1] = bnLayers[i].running_var
     end
     local state = {parameters = parameters, bnVars = bnVars}
@@ -252,11 +255,21 @@ end
 
 function loadModelState(model, stateToLoad)
     local state = modelState(model)
+
+	-- print ('state.parameters : ', state.parameters)
+	-- print ('stateToLoad.parameters : ', stateToLoad.parameters)
+
     assert(#state.parameters == #stateToLoad.parameters)
-    assert(#state.bnVars == #stateToLoad.bnVars)
+	
+	-- print('state.bnVars : ', state.bnVars)
+	-- print('stateToLoad.bnVars : ', stateToLoad.bnVars)
+    
+	assert(#state.bnVars == #stateToLoad.bnVars)
+
     for i = 1, #state.parameters do
         state.parameters[i]:copy(stateToLoad.parameters[i])
     end
+
     for i = 1, #state.bnVars do
         state.bnVars[i]:copy(stateToLoad.bnVars[i])
     end
@@ -283,7 +296,65 @@ function recognizeImageLexiconFree(model, image)
     assert(image:dim() == 2 and image:type() == 'torch.ByteTensor',
         'Input image should be single-channel byte tensor')
     image = image:view(1, 1, image:size(1), image:size(2))
+	-- print("recognizeImageLexiconFree")
     local output = model:forward(image)
+
+    function label2ascii(label)
+        local ascii
+        if label >= 1 and label <= 10 then
+            ascii = label - 1 + 48
+        elseif label >= 11 and label <= 36 then
+            ascii = label - 11 + 97
+        elseif label == 0 then -- used when displaying raw predictions
+            ascii = string.byte('-')
+        end
+        return ascii
+    end
+
+	print('output : ', output)
+    -- output prob matrix in file
+    local file=io.open("matrix.txt", "w")
+
+    for i=0, 36 do
+        file:write(string.format("    %c   ", label2ascii(i)))
+        --print(string.format("%c ", label2ascii(i)))
+    end
+
+    file:write("\n")
+
+    for i=1, 26 do
+        maxp=tonumber(output[1][i][1])
+        prop=0
+        maxI=1
+
+        for k=2, 37 do
+            prop=tonumber(output[1][i][k])
+            if prop==0.0 or prop==-0.0 then
+                maxI=k
+                break
+            end
+
+            if (prop>maxp) then
+                 print(prop, ">", maxp, " maxI : ", k)
+                 maxp=prop
+                 maxI=k
+            end
+        end
+        
+        print(string.format("%2d : %c", i, label2ascii(maxI-1)))
+
+        for j=1, 37 do
+            if j==maxI then
+                file:write(string.format("*%6.2f ", output[1][i][j]))
+            else
+                file:write(string.format(" %6.2f ", output[1][i][j]))
+            end
+        end
+        file:write("\n")
+    end
+
+    file:close()
+    -- end output
     local pred, predRaw = naiveDecoding(output)
     local str = label2str(pred)[1]
     local rawStr = label2str(predRaw, true)[1]
