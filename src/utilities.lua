@@ -227,6 +227,7 @@ end
 
 
 function modelState(model)
+    --extract the state of model, fill the state with network parameters
     --[[ Get model state, including model parameters (weights and biases) and
          running mean/std in batch normalization layers
     ARGS:
@@ -234,31 +235,98 @@ function modelState(model)
     RETURN:
       - `state` : table, model states
     ]]
-    local parameters = model:parameters()
-    local bnVars = {}
+    --model is nn.sequential, structure in torch
+    local parameters = model:parameters()   -- parameter table
+    local bnVars = {}                       -- empty table
+
+    --findModules(typename)
+    --Find all instances of modules in the network of a certain typename.
+    --It returns a flattened list of the matching nodes, as well as a flattened list of the container modules for each matching node.
+    --Modules that do not have a parent container (ie, a top level nn.Sequential for instance) will return their self as the container.
+    --This function is very helpful for navigating complicated nested networks
+    
     local bnLayers = model:findModules('nn.BatchNormalization')
     for i = 1, #bnLayers do
+        --add tail
         bnVars[#bnVars+1] = bnLayers[i].running_mean
         -- bnVars[#bnVars+1] = bnLayers[i].running_std
         bnVars[#bnVars+1] = bnLayers[i].running_var
     end
+
     local bnLayers = model:findModules('nn.SpatialBatchNormalization')
     for i = 1, #bnLayers do
+        --add tail
         bnVars[#bnVars+1] = bnLayers[i].running_mean
         -- bnVars[#bnVars+1] = bnLayers[i].running_std
         bnVars[#bnVars+1] = bnLayers[i].running_var
     end
+
+    --zjc
+    local scTable=model:findModules("cudnn.SpatialConvolution")
+    print("spatial convolution\n", scTable)
+    print("spatial batch normalization\n", bnLayers)
+    local lstmTable=model:findModules("nn.LstmLayer")
+    --print("lstm\n", lstmTable)
+    
+    -- output lstm layer parameters
+    --[[
+    file=io.open("lstmLayers.txt", "w")
+    file:write("lstm layer nubmer : ", #lstmTable, "\n")
+    for i=1, #lstmTable do
+        local weight=lstmTable[i].lstmUnit.modules[2].weight
+        file:write("\nlayer : ", i, " i2h weight ", weight:size(1), " * ", weight:size(2), "\n\n")
+        for m=1, weight:size(1) do
+            for n=1, weight:size(2) do
+                file:write(string.format("% 6.4f ", weight[m][n]))
+            end
+            file:write("\n")
+        end
+
+        local bias=lstmTable[i].lstmUnit.modules[2].bias
+        file:write("\nlayer : ", i, " i2h bias ", bias:size(1), "\n\n")
+        for m=1, bias:size(1) do
+            file:write(string.format("% 6.4f", bias[m]))
+        end
+        file:write("\n")
+
+        local weight_2=lstmTable[i].lstmUnit.modules[4].weight
+        file:write("\nlayer : ", i, " h2h weight ", weight_2:size(1), " * ", weight_2:size(2), "\n\n")
+        for m=1, weight_2:size(1) do
+            for n=1, weight_2:size(2) do
+                file:write(string.format("% 6.4f ", weight_2[m][n]))
+            end
+            file:write("\n")
+        end
+
+        local bias_2=lstmTable[i].lstmUnit.modules[4].bias
+        file:write("\nlayer : ", i, " h2h bias ", bias_2:size(1), "\n\n")
+        for m=1, bias_2:size(1) do
+            file:write(string.format("% 6.4f", bias_2[m]))
+        end
+        file:write("\n")
+
+    end
+
+    file:close()
+    ]]
+
+    --construct a tabel for torch.save
     local state = {parameters = parameters, bnVars = bnVars}
     return state
 end
 
 
 function loadModelState(model, stateToLoad)
+
+    --zjc
+    --stateToLoad is the snapshot
+    print("stateToLoad\n")
+    print(stateToLoad)
+    --local modelSize, nParamsEachLayer=modelSize(stateToLoad)
+    --io.write(string.format('Model size: %d\n%s', modelSize, nParamsEachLayer))
+
     local state = modelState(model)
-
-	-- print ('state.parameters : ', state.parameters)
-	-- print ('stateToLoad.parameters : ', stateToLoad.parameters)
-
+    
     assert(#state.parameters == #stateToLoad.parameters)
 	
 	-- print('state.bnVars : ', state.bnVars)
@@ -266,15 +334,202 @@ function loadModelState(model, stateToLoad)
     
 	assert(#state.bnVars == #stateToLoad.bnVars)
 
+
+    --44
     for i = 1, #state.parameters do
         state.parameters[i]:copy(stateToLoad.parameters[i])
     end
 
+    --6
     for i = 1, #state.bnVars do
         state.bnVars[i]:copy(stateToLoad.bnVars[i])
     end
+
+    --zjc
+    print("state :", state)
+    print("state.parameters number :", #state.parameters)
+    print("state.bnVars number :", #state.bnVars)
+    print("state.parameters : ", state.parameters)
+	print("state.bnVars : ", state.bnVars)
+
+    output_network(state)
+
 end
 
+function output_network(state)
+    --output the whole network
+    file=io.open("model_params.dat", "w")
+    --cnn 1 weight
+    local tensor=state.parameters[1]
+    output_conv_table(tensor, file, "cnn 1 weight\n")
+    --cnn 1 bias
+    tensor=state.parameters[2]
+    output_vector(tensor, file, "cnn 1 bias\n")
+    --cnn 2 weight
+    tensor=state.parameters[3]
+    output_conv_table(tensor, file, "cnn 2 weight\n")
+    --cnn 2 bias
+    tensor=state.parameters[4]
+    output_vector(tensor, file, "cnn 2 bias\n")
+    --cnn 3 weight
+    tensor=state.parameters[5]
+    output_conv_table(tensor, file, "cnn 3 weight\n")
+    --cnn 3 bias
+    tensor=state.parameters[6]
+    output_vector(tensor, file, "cnn 3 bias\n")
+    local bnVars=state.bnVars
+    --BatchNormalization
+    output_vector(bnVars[1], file, "BatchNormalization mean\n")
+    output_vector(bnVars[2], file, "BatchNormalization var\n")
+    tensor=state.parameters[7]
+    output_vector(tensor, file, "BatchNormalization gamma\n")
+    tensor=state.parameters[8]
+    output_vector(tensor, file, "BatchNormalization deta\n")
+    --cnn 4 weight
+    tensor=state.parameters[9]
+    output_conv_table(tensor, file, "cnn 4 weight\n")
+    --cnn 4 bias
+    tensor=state.parameters[10]
+    output_vector(tensor, file, "cnn 4 bias\n")
+    --cnn 5 weight
+    tensor=state.parameters[11]
+    output_conv_table(tensor, file, "cnn 5 weight\n")
+    --cnn 5 bias
+    tensor=state.parameters[12]
+    output_vector(tensor, file, "cnn 5 bias\n")
+    --BatchNormalization
+    output_vector(bnVars[3], file, "BatchNormalization mean\n")
+    output_vector(bnVars[4], file, "BatchNormalization var\n")
+    tensor=state.parameters[13]
+    output_vector(tensor, file, "BatchNormalization gamma\n")
+    tensor=state.parameters[14]
+    output_vector(tensor, file, "BatchNormalization deta\n")
+    --cnn 6 weight
+    tensor=state.parameters[15]
+    output_conv_table(tensor, file, "cnn 6 weight\n")
+    --cnn 6 bias
+    tensor=state.parameters[16]
+    output_vector(tensor, file, "cnn 6 bias\n")
+    --cnn 7 weight
+    tensor=state.parameters[17]
+    output_conv_table(tensor, file, "cnn 7 weight\n")
+    --cnn 7 bias
+    tensor=state.parameters[18]
+    output_vector(tensor, file, "cnn 7 bias\n")
+    --BatchNormalization
+    output_vector(bnVars[5], file, "BatchNormalization mean\n")
+    output_vector(bnVars[6], file, "BatchNormalization var\n")
+    tensor=state.parameters[19]
+    output_vector(tensor, file, "BatchNormalization gamma\n")
+    tensor=state.parameters[20]
+    output_vector(tensor, file, "BatchNormalization deta\n")
+    --lstm 1 forward
+    tensor=state.parameters[21]
+    output_matrix(tensor, file, "lstm 1 forward i2h weight\n")
+    tensor=state.parameters[22]
+    output_vector(tensor, file, "lstm 1 forward i2h bias\n")
+    tensor=state.parameters[23]
+    output_matrix(tensor, file, "lstm 1 forward h2h weight\n")
+    tensor=state.parameters[24]
+    output_vector(tensor, file, "lstm 1 forward h2h bias\n")
+    --lstm 1 backward
+    tensor=state.parameters[25]
+    output_matrix(tensor, file, "lstm 1 backward i2h weight\n")
+    tensor=state.parameters[26]
+    output_vector(tensor, file, "lstm 1 backward i2h bias\n")
+    tensor=state.parameters[27]
+    output_matrix(tensor, file, "lstm 1 backward h2h weight\n")
+    tensor=state.parameters[28]
+    output_vector(tensor, file, "lstm 1 backward h2h bias\n")
+    --full connect
+    tensor=state.parameters[29]
+    output_matrix(tensor, file, "lstm 1 forward full connect weight\n")
+    tensor=state.parameters[30]
+    output_vector(tensor, file, "lstm 1 forward full connect bias\n")
+    tensor=state.parameters[31]
+    output_matrix(tensor, file, "lstm 1 backward full connect weight\n")
+    tensor=state.parameters[32]
+    output_vector(tensor, file, "lstm 1 backward full connect bias\n")
+    --lstm 2 forward
+    tensor=state.parameters[33]
+    output_matrix(tensor, file, "lstm 2 forward i2h weight\n")
+    tensor=state.parameters[34]
+    output_vector(tensor, file, "lstm 2 forward i2h bias\n")
+    tensor=state.parameters[35]
+    output_matrix(tensor, file, "lstm 2 forward h2h weight\n")
+    tensor=state.parameters[36]
+    output_vector(tensor, file, "lstm 2 forward h2h bias\n")
+    --lstm 2 backward
+    tensor=state.parameters[37]
+    output_matrix(tensor, file, "lstm 2 backward i2h weight\n")
+    tensor=state.parameters[38]
+    output_vector(tensor, file, "lstm 2 backward i2h bias\n")
+    tensor=state.parameters[39]
+    output_matrix(tensor, file, "lstm 2 backward h2h weight\n")
+    tensor=state.parameters[40]
+    output_vector(tensor, file, "lstm 2 backward h2h bias\n")
+    --full connect
+    tensor=state.parameters[41]
+    output_matrix(tensor, file, "lstm 2 forward full connect weight\n")
+    tensor=state.parameters[42]
+    output_vector(tensor, file, "lstm 2 forward full connect bias\n")
+    tensor=state.parameters[43]
+    output_matrix(tensor, file, "lstm 2 backward full connect weight\n")
+    tensor=state.parameters[44]
+    output_vector(tensor, file, "lstm 2 backward full connect bias\n")
+
+
+    file:close()
+end
+
+function output_matrix(tensor, file, str)
+    file:write(str)
+    local I=tensor:size(1)
+    local J=tensor:size(2)
+    file:write(string.format("Dim : %3d * %3d\n\n", I, J))
+    for i=1, I do
+        for j=1, J do
+            file:write(string.format("% 6.2f ", tensor[i][j]))
+        end
+        file:write("\n")
+    end
+    file:write("\n")
+    file:flush()
+end
+
+function output_vector(tensor, file, str)
+    file:write(str)
+    local num=tensor:size(1)
+    file:write(string.format("Dim : %3d\n\n", num))
+    for i=1, num do
+        file:write(string.format("% 6.4f ", tensor[i]))
+    end
+    file:write("\n\n")
+    file:flush()
+end
+
+function output_conv_table(tensor, file, str)
+    --conv table MxNxIxJ
+    file:write(str)
+    local M=tensor:size(1)
+    local N=tensor:size(2)
+    local I=tensor:size(3)
+    local J=tensor:size(4)
+    file:write(string.format("Dim : %3d * %3d * %3d * %3d\n\n", M, N, I, J))
+    for m=1, M do
+        for n=1, N do
+            for i=1, I do
+                for j=1, J do
+                    file:write(string.format("% 6.4f ", tensor[m][n][i][j]))
+                end
+                file:write("\n")
+            end
+            file:write("\n")
+        end
+    end
+
+    file:flush()
+end
 
 function loadAndResizeImage(imagePath)
     local img = Image.load(imagePath, 3, 'byte')
@@ -311,9 +566,9 @@ function recognizeImageLexiconFree(model, image)
         return ascii
     end
 
-	print('output : ', output)
-    -- output prob matrix in file
-    local file=io.open("matrix.txt", "w")
+	--print('output : ', output)
+    --output prob matrix in file
+    local file=io.open("cnn_mid_result.txt", "a")
 
     for i=0, 36 do
         file:write(string.format("    %c   ", label2ascii(i)))
@@ -335,7 +590,7 @@ function recognizeImageLexiconFree(model, image)
             end
 
             if (prop>maxp) then
-                 print(prop, ">", maxp, " maxI : ", k)
+                 --print(prop, ">", maxp, " maxI : ", k)
                  maxp=prop
                  maxI=k
             end
@@ -355,6 +610,7 @@ function recognizeImageLexiconFree(model, image)
 
     file:close()
     -- end output
+
     local pred, predRaw = naiveDecoding(output)
     local str = label2str(pred)[1]
     local rawStr = label2str(predRaw, true)[1]
