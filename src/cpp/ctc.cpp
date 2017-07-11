@@ -19,10 +19,10 @@ const int blankLabel = 0;
 
 template <class T>
 int forwardBackward(lua_State* L) {
-    const thpp::Tensor<T> input     = fblualib::luaGetTensorChecked<T>(L, 1);
-    const thpp::Tensor<int> targets = fblualib::luaGetTensorChecked<int>(L, 2);
+    thpp::Tensor<T> input			= *(fblualib::luaGetTensorChecked<T>(L, 1));
+    thpp::Tensor<int> targets		= *(fblualib::luaGetTensorChecked<int>(L, 2));
     const bool forwardOnly          = lua_toboolean(L, 3);
-    thpp::Tensor<T> gradInput       = fblualib::luaGetTensorChecked<T>(L, 4);
+    thpp::Tensor<T> gradInput       = *(fblualib::luaGetTensorChecked<T>(L, 4));
 
     const int nFrame      = input.size(0);
     const int inputLength = input.size(1);
@@ -150,7 +150,7 @@ int forwardBackward(lua_State* L) {
 
 template <class T>
 int naiveDecoding(lua_State* L) {
-    const thpp::Tensor<T>& input = fblualib::luaGetTensorChecked<T>(L, 1);
+    thpp::Tensor<T>& input = *(fblualib::luaGetTensorChecked<T>(L, 1));
     const int nFrame = input.size(0);
     const int inputLength = input.size(1);
 
